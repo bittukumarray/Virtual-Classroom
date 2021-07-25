@@ -97,6 +97,9 @@ class Task(APIView):
             if len(student_list)==0:
                 return Response({"msg":"student_list cant be empty"}, status=status.HTTP_400_BAD_REQUEST)
         
+            if deadline_at<=publish_at:
+                return Response({"msg":"publish date cant be on or after deadline"}, status=status.HTTP_400_BAD_REQUEST)
+     
 
         except:
             return Response({"msg":"wrong data format"}, status=status.HTTP_400_BAD_REQUEST)
@@ -122,6 +125,8 @@ class Task(APIView):
 
 class EachTask(APIView):
 
+    permission_classes = (IsAuthenticated,)
+
     def put(self, request, pk):
         user = request.user
 
@@ -145,7 +150,8 @@ class EachTask(APIView):
 
             if len(student_list)==0:
                 return Response({"msg":"student_list cant be empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
+            if deadline_at<=publish_at:
+                return Response({"msg":"publish date cant be on or after deadline"}, status=status.HTTP_400_BAD_REQUEST)
         
         except:
             return Response({"msg":"wrong data format"}, status=status.HTTP_400_BAD_REQUEST)
@@ -196,9 +202,78 @@ class EachTask(APIView):
 
 
 
+
+
 class TaskSubmission(APIView):
 
     permission_classes = (IsAuthenticated,)
+
+    def getSubmissionForStudent(self, userProfile, assignment_id):
+
+        assignmentObj=Assignment.objects.get(id=assignment_id, created_for=userProfile)
+
+        try:
+            assmtDetails={"description":assignmentObj.description, "publish_at":assignmentObj.publish_at, "deadline_at":assignmentObj.deadline_at, "teacher":assignmentObj.created_by.user.username}
+            res = Submission.objects.get(user=userProfile, assignment=assignmentObj)
+            submissionStatus=None
+            if res.submission_date<=assignmentObj.deadline_at:
+                submissionStatus="ONTIME SUBMISION"
+            else:
+                submissionStatus="LATE SUBMISSION"
+
+
+            return Response({"data":{"assignment_details":assmtDetails,"submission_details":{"submission_id":res.id, "remarks":res.remarks, "submitted_at":res.submission_date,"status":submissionStatus}}})
+
+        except Exception as e:
+            return Response({"msg":"no submission for this assignment"}, status=status.HTTP_404_NOT_FOUND)    
+
+
+
+    def getSubmissionsForTeacher(self, userProfile, assignment_id):
+
+        assignmentObj=Assignment.objects.get(id=assignment_id, created_by=userProfile)
+        res = Submission.objects.filter(assignment=assignmentObj)
+
+        ans=[]
+
+        assmtDetails={"description":assignmentObj.description, "publish_at":assignmentObj.publish_at, "deadline_at":assignmentObj.deadline_at}
+
+
+        for data in res:
+            status=None
+
+            if data.submission_date<=assignmentObj.deadline_at:
+                status="ONTIME SUBMISION"
+            else:
+                status="LATE SUBMISSION"
+
+            eachSubmission = OrderedDict(
+                    [('submission_id', data.id),
+                    ('remarks', data.remarks),
+                    ("student", data.user.user.username),
+                    ("submitted_at", data.submission_date),
+                    ("status",status),
+                     ])
+            ans.append(eachSubmission)
+
+        return Response({"data":{"assignment_detaisl":assmtDetails,"submission_details":ans}})         
+
+
+
+    def get(self, request, pk):
+        
+        user = request.user
+        userProfile= UserProfile.objects.get(user=user)
+
+        if userProfile.role=="student":
+            return self.getSubmissionForStudent(userProfile, pk)
+        return self.getSubmissionsForTeacher(userProfile, pk)     
+
+        
+
+
+
+
 
     def post(self, request, pk):
 
