@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
-from .models import Assignment
+from .models import Assignment, Submission
 from rest_framework.permissions import IsAuthenticated
 from authService.models import UserProfile
 from django.core.exceptions import ValidationError
@@ -90,6 +90,14 @@ class Task(APIView):
             deadline_at=request.data["deadline_at"]
             student_list=request.data["student_list"]
             description=request.data["description"]
+
+            if len(description)==0:
+                return Response({"msg":"description cant be empty"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if len(student_list)==0:
+                return Response({"msg":"student_list cant be empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+
         except:
             return Response({"msg":"wrong data format"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -131,6 +139,14 @@ class EachTask(APIView):
             deadline_at=request.data["deadline_at"]
             student_list=request.data["student_list"]
             description=request.data["description"]
+
+            if len(description)==0:
+                return Response({"msg":"description cant be empty"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if len(student_list)==0:
+                return Response({"msg":"student_list cant be empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        
         except:
             return Response({"msg":"wrong data format"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -176,3 +192,43 @@ class EachTask(APIView):
             return Response({"msg":"data does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
         return Response({"msg":"assignment deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+class TaskSubmission(APIView):
+
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, pk):
+
+        user = request.user
+
+        userProfile= UserProfile.objects.get(user=user)
+        if userProfile.role=="teacher":
+            return Response({"msg":"You don't have permission to submit an assignment"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+
+        remarks = None
+
+        try:
+            remarks = request.data["remarks"]
+            if len(remarks)==0:
+                return Response({"msg":"remarks cant be empty"}, status=status.HTTP_400_BAD_REQUEST)
+        except:
+            return Response({"msg":"data format incorrect"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        assignmentObj = None
+        try:
+            assignmentObj = Assignment.objects.get(created_for=userProfile, id=pk)
+        except:
+            return Response({"msg":"assignment does not exist"}, status=status.HTTP_404_NOT_FOUND)
+        
+        obj = None
+        
+        try:
+            obj = Submission.objects.create(user=userProfile, assignment=assignmentObj, remarks=remarks)
+        except:
+            return Response({"msg":"You have already submitted this assignment so you cant submit again"},status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({"msg":"assignment submitted successfully"}, status=status.HTTP_201_CREATED)
