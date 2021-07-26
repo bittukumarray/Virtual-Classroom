@@ -17,10 +17,10 @@ class Task(APIView):
     permission_classes = (IsAuthenticated,)
 
     # statusFilter filter assigments based on status -> ALL, PENDING, OVERDUE, SIBMITTED
-    def statusFilter(self, userProfile, assignmentObj, status):
+    def statusFilter(self, userProfile, assignmentObj, statusParam):
         
         res=[]
-        if status=="PENDING":
+        if statusParam=="PENDING":
             for data in assignmentObj:
                 try:
                     Submission.objects.get(user=userProfile, assignment=data)
@@ -39,7 +39,7 @@ class Task(APIView):
                 res.append(eachAssignment)
 
 
-        elif status=="OVERDUE":
+        elif statusParam=="OVERDUE":
             for data in assignmentObj:
                 try:
                     Submission.objects.get(user=userProfile, assignment=data)
@@ -58,7 +58,7 @@ class Task(APIView):
                 res.append(eachAssignment)
 
                 
-        elif status=="SUBMITTED":
+        elif statusParam=="SUBMITTED":
             for data in assignmentObj:
                 try:
                     Submission.objects.get(user=userProfile, assignment=data)
@@ -90,7 +90,7 @@ class Task(APIView):
 
 
     # getAssignmentsforStudent returns all the assignments assigned to the student with filters
-    def getAssignmentsforStudent(self, userProfile, publishAt, status):
+    def getAssignmentsforStudent(self, userProfile, publishAt, statusParam):
         obj = None
 
         if publishAt=="SCHEDULED":
@@ -100,7 +100,7 @@ class Task(APIView):
         else:
             obj = Assignment.objects.filter(created_for=userProfile)
 
-        res=self.statusFilter(userProfile, obj, status)
+        res=self.statusFilter(userProfile, obj, statusParam)
         return Response({"data":res})             
 
 
@@ -331,33 +331,32 @@ class TaskSubmission(APIView):
             assignmentObj=Assignment.objects.get(id=assignment_id, created_by=userProfile)
         except:
             return Response({"msg":"this assignment does not exist"}, status=status.HTTP_404_NOT_FOUND)
-        res = None
-        try:
-            res = Submission.objects.filter(assignment=assignmentObj)
-        except:
-            return Response({"msg":"no submission for this assignment"}, status=status.HTTP_404_NOT_FOUND)
-
+        
+        res = Submission.objects.filter(assignment=assignmentObj)
+        
         ans=[]
 
         assmtDetails={"description":assignmentObj.description, "publish_at":assignmentObj.publish_at, "deadline_at":assignmentObj.deadline_at}
 
 
         for data in res:
-            status=None
+            statusRes=None
 
             if data.submission_date<=assignmentObj.deadline_at:
-                status="ONTIME SUBMISION"
+                statusRes="ONTIME SUBMISION"
             else:
-                status="LATE SUBMISSION"
+                statusRes="LATE SUBMISSION"
 
             eachSubmission = OrderedDict(
                     [('submission_id', data.id),
                     ('remarks', data.remarks),
                     ("student", data.user.user.username),
                     ("submitted_at", data.submission_date),
-                    ("status",status),
+                    ("status",statusRes),
                      ])
             ans.append(eachSubmission)
+        if len(ans)==0:
+            return Response({"msg":"no submission for this assignment"}, status=status.HTTP_404_NOT_FOUND)
 
         return Response({"data":{"assignment_detaisl":assmtDetails,"submission_details":ans}})         
 
