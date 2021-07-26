@@ -26,6 +26,7 @@ SECRET_KEY = 'f$r@xy6@ksd#sp3ea)e-me+yqo51-5n%21!tm57htl%(&gs+g$'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+
 ALLOWED_HOSTS = []
 
 from datetime import timedelta
