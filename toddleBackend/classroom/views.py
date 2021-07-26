@@ -9,31 +9,113 @@ from rest_framework.permissions import IsAuthenticated
 from authService.models import UserProfile
 from django.core.exceptions import ValidationError
 from collections import OrderedDict
+from django.utils import timezone
 
 
 class Task(APIView):
 
     permission_classes = (IsAuthenticated,)
 
-    def getAssignmentsforStudent(self, userProfile):
-        obj = Assignment.objects.filter(created_for=userProfile)
-
+    # statusFilter filter assigments based on status -> ALL, PENDING, OVERDUE, SIBMITTED
+    def statusFilter(self, userProfile, assignmentObj, status):
+        
         res=[]
+        if status=="PENDING":
+            for data in assignmentObj:
+                try:
+                    Submission.objects.get(user=userProfile, assignment=data)
+                    continue
+                except:
+                    if data.deadline_at<=timezone.now():
+                        continue    
 
-        for data in obj:
-            eachAssignment = OrderedDict(
-                    [('id', data.id),
-                    ('publish_at', data.publish_at),
-                    ("deadline_at", data.deadline_at),
-                    ("description", data.description),
-                    ("teacher", data.created_by.user.username)
-                     ])
-            res.append(eachAssignment)
+                eachAssignment = OrderedDict(
+                        [('id', data.id),
+                        ('publish_at', data.publish_at),
+                        ("deadline_at", data.deadline_at),
+                        ("description", data.description),
+                        ("teacher", data.created_by.user.username)
+                        ])
+                res.append(eachAssignment)
+
+
+        elif status=="OVERDUE":
+            for data in assignmentObj:
+                try:
+                    Submission.objects.get(user=userProfile, assignment=data)
+                    continue
+                except:
+                    if data.deadline_at>timezone.now():
+                        continue    
+
+                eachAssignment = OrderedDict(
+                        [('id', data.id),
+                        ('publish_at', data.publish_at),
+                        ("deadline_at", data.deadline_at),
+                        ("description", data.description),
+                        ("teacher", data.created_by.user.username)
+                        ])
+                res.append(eachAssignment)
+
+                
+        elif status=="SUBMITTED":
+            for data in assignmentObj:
+                try:
+                    Submission.objects.get(user=userProfile, assignment=data)
+                except:
+                    continue    
+
+                eachAssignment = OrderedDict(
+                        [('id', data.id),
+                        ('publish_at', data.publish_at),
+                        ("deadline_at", data.deadline_at),
+                        ("description", data.description),
+                        ("teacher", data.created_by.user.username)
+                        ])
+                res.append(eachAssignment)
+
+
+        else:
+            for data in assignmentObj:
+                eachAssignment = OrderedDict(
+                        [('id', data.id),
+                        ('publish_at', data.publish_at),
+                        ("deadline_at", data.deadline_at),
+                        ("description", data.description),
+                        ("teacher", data.created_by.user.username)
+                        ])
+                res.append(eachAssignment)
+
+        return res
+
+
+    # getAssignmentsforStudent returns all the assignments assigned to the student with filters
+    def getAssignmentsforStudent(self, userProfile, publishAt, status):
+        obj = None
+
+        if publishAt=="SCHEDULED":
+            obj = Assignment.objects.filter(created_for=userProfile, publish_at__gt=timezone.now())
+        elif publishAt=="ONGOING":
+            obj = Assignment.objects.filter(created_for=userProfile, publish_at__lte=timezone.now())
+        else:
+            obj = Assignment.objects.filter(created_for=userProfile)
+
+        res=self.statusFilter(userProfile, obj, status)
         return Response({"data":res})             
 
 
-    def getAssignmentsForTeacher(self, userProfile):
-        obj = Assignment.objects.filter(created_by=userProfile)
+    # getAssignmentsForTeacher returns all the assigments which the teacher has created based on filters
+    def getAssignmentsForTeacher(self, userProfile, publishAt):
+
+        obj = None
+
+        if publishAt=="SCHEDULED":
+            print("yes")
+            obj = Assignment.objects.filter(created_by=userProfile, publish_at__gt=timezone.now())
+        elif publishAt=="ONGOING":
+            obj = Assignment.objects.filter(created_by=userProfile, publish_at__lte=timezone.now())
+        else:
+            obj = Assignment.objects.filter(created_by=userProfile)
 
         res=[]
 
@@ -54,9 +136,14 @@ class Task(APIView):
         return Response({"data":res}) 
 
 
+    # get assignment feed - it will differentiate the request whether it has been
+    # made by a student or a teacher and returns the appropriate results.
     def get(self, request):
 
         user = request.user
+
+        publishAt = request.GET.get("publishedAt")
+        status = request.GET.get("status")
 
         userProfile=None
 
@@ -67,11 +154,11 @@ class Task(APIView):
 
         if userProfile.role=="student":
             print("yes")
-            return self.getAssignmentsforStudent(userProfile)
+            return self.getAssignmentsforStudent(userProfile, publishAt, status)
         else:
-            return self.getAssignmentsForTeacher(userProfile)    
+            return self.getAssignmentsForTeacher(userProfile, publishAt)    
 
-    
+    # creates an assigment, only teachers can access this, not for student
     def post(self, request):
 
         user = request.user
@@ -127,6 +214,7 @@ class EachTask(APIView):
 
     permission_classes = (IsAuthenticated,)
 
+    # complete update of an assignemnt by teahers only, no student can access this
     def put(self, request, pk):
         user = request.user
 
@@ -160,7 +248,7 @@ class EachTask(APIView):
         try:
             obj = Assignment.objects.get(id=pk, created_by=userProfile)
         except Exception as e:
-            return Response({"msg":"data does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"msg":"You don't have permission to update this assignment"}, status=status.HTTP_401_UNAUTHORIZED)
 
         obj.publish_at=publish_at
         obj.deadline_at=deadline_at
@@ -182,6 +270,7 @@ class EachTask(APIView):
 
 
 
+    # deletes an assigment by teachers only, not accessible by student
     def delete(self, request, pk):
 
         user = request.user
@@ -195,7 +284,7 @@ class EachTask(APIView):
             obj=Assignment.objects.get(id=pk, created_by=userProfile)
             obj.delete()
         except Exception as e:
-            return Response({"msg":"data does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"msg":"You don't have permission to delete this assignment"}, status=status.HTTP_401_UNAUTHORIZED)
 
         return Response({"msg":"assignment deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
@@ -208,9 +297,14 @@ class TaskSubmission(APIView):
 
     permission_classes = (IsAuthenticated,)
 
+    # getSubmissionForStudent returns submission against an assignment for a student
     def getSubmissionForStudent(self, userProfile, assignment_id):
 
-        assignmentObj=Assignment.objects.get(id=assignment_id, created_for=userProfile)
+        assignmentObj = None
+        try:
+            assignmentObj=Assignment.objects.get(id=assignment_id, created_for=userProfile)
+        except:
+            return Response({"msg":"this assignment does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             assmtDetails={"description":assignmentObj.description, "publish_at":assignmentObj.publish_at, "deadline_at":assignmentObj.deadline_at, "teacher":assignmentObj.created_by.user.username}
@@ -229,10 +323,19 @@ class TaskSubmission(APIView):
 
 
 
+    # getSubmissionsForTeacher returns all the submissions made against an assignment
     def getSubmissionsForTeacher(self, userProfile, assignment_id):
 
-        assignmentObj=Assignment.objects.get(id=assignment_id, created_by=userProfile)
-        res = Submission.objects.filter(assignment=assignmentObj)
+        assignmentObj = None
+        try:
+            assignmentObj=Assignment.objects.get(id=assignment_id, created_by=userProfile)
+        except:
+            return Response({"msg":"this assignment does not exist"}, status=status.HTTP_404_NOT_FOUND)
+        res = None
+        try:
+            res = Submission.objects.filter(assignment=assignmentObj)
+        except:
+            return Response({"msg":"no submission for this assignment"}, status=status.HTTP_404_NOT_FOUND)
 
         ans=[]
 
@@ -260,6 +363,7 @@ class TaskSubmission(APIView):
 
 
 
+    # get submissions/submission based on request, it identifies who made the request and sends results appropriately
     def get(self, request, pk):
         
         user = request.user
@@ -272,9 +376,7 @@ class TaskSubmission(APIView):
         
 
 
-
-
-
+    # submits a submission for an assignment, accessible by only student not any teacher
     def post(self, request, pk):
 
         user = request.user
@@ -297,7 +399,7 @@ class TaskSubmission(APIView):
         try:
             assignmentObj = Assignment.objects.get(created_for=userProfile, id=pk)
         except:
-            return Response({"msg":"assignment does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"msg":"You don't have permission to submit this assignment"}, status=status.HTTP_401_UNAUTHORIZED)
         
         obj = None
         
