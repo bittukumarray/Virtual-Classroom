@@ -1,8 +1,28 @@
 # virtual-classroom
 
+
+
+These all commands are for Ubuntu 18.04
+
+- Install Django - type below command in a terminal of your ubuntu
+
+  - ```
+    pip3 install Django
+    ```
+
+- Install Django Rest Framework - type the below command to install it into your terminal
+
+  - ```
+    pip3 install djangorestframework
+    ```
+
+- Install djangorestframework-simplejwt - type the below command to install it into your terminal
+
+  - ```
+    pip3 install djangorestframework-simplejwt
+    ```
+
 Below I have described each endpoint's response, request, parameters, etc format.
-
-
 
 - Sign up  - POST Method
 
