@@ -143,7 +143,7 @@ class Task(APIView):
         user = request.user
 
         publishAt = request.GET.get("publishedAt")
-        status = request.GET.get("status")
+        statusParam = request.GET.get("status")
 
         userProfile=None
 
@@ -154,7 +154,7 @@ class Task(APIView):
 
         if userProfile.role=="student":
             print("yes")
-            return self.getAssignmentsforStudent(userProfile, publishAt, status)
+            return self.getAssignmentsforStudent(userProfile, publishAt, statusParam)
         else:
             return self.getAssignmentsForTeacher(userProfile, publishAt)    
 
@@ -217,7 +217,7 @@ class EachTask(APIView):
     # complete update of an assignemnt by teahers only, no student can access this
     def put(self, request, pk):
         user = request.user
-
+        
         userProfile= UserProfile.objects.get(user=user)
         if userProfile.role=="student":
             return Response({"msg":"You don't have permission to update an assignment"}, status=status.HTTP_401_UNAUTHORIZED)
